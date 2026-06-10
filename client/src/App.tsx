@@ -271,7 +271,7 @@ function LoginScreen({ nameInput, roomInput, onNameChange, onRoomChange, onJoin,
         </button>
 
         <div style={{ marginTop: 20, fontSize: 11, color: '#555', textAlign: 'center' }}>
-          2~6명 플레이 · 포커 기반 클라이밍 게임
+          3~5명 플레이 · 포커 기반 클라이밍 게임
         </div>
       </div>
     </div>

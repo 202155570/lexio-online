@@ -4,6 +4,7 @@ import type {
 } from './types.js';
 import {
   buildDeck, shuffle, classifyHand, canPlay, NUMBER_RANK,
+  PLAYER_CONFIG, MIN_PLAYERS, MAX_PLAYERS,
 } from './rules.js';
 
 export class GameRoom {
@@ -53,7 +54,7 @@ export class GameRoom {
   }
 
   addPlayer(id: string, name: string): boolean {
-    if (this.players.length >= 6) return false;
+    if (this.players.length >= MAX_PLAYERS) return false;
     if (this.state.phase === 'playing') return false;
     if (this.players.find(p => p.id === id)) return false;
 
@@ -78,17 +79,19 @@ export class GameRoom {
   }
 
   canStart(): boolean {
-    return this.players.length >= 2
+    const n = this.players.length;
+    return n >= MIN_PLAYERS && n <= MAX_PLAYERS
       && this.state.phase === 'waiting'
       && this.players.every(p => p.ready);
   }
 
   startGame(): GameState {
     const count = this.players.length;
-    const deck = shuffle(buildDeck());
+    // 인원별 공식 구성: 사용 숫자 범위와 인당 타일 수
+    const cfg = PLAYER_CONFIG[count] ?? { maxNumber: 15, perPlayer: Math.floor(60 / count) };
+    const deck = shuffle(buildDeck(cfg.maxNumber));
+    const perPlayer = cfg.perPlayer;
 
-    // deal tiles evenly (drop remainder tiles for 6p edge case)
-    const perPlayer = Math.floor(60 / count);
     for (let i = 0; i < count; i++) {
       this.players[i].tiles = deck.slice(i * perPlayer, (i + 1) * perPlayer);
       this.players[i].passed = false;
@@ -107,7 +110,7 @@ export class GameRoom {
     this.state.tablePassCount = 0;
     this.state.round++;
     this.state.players = this.players;
-    this.log('게임이 시작되었습니다!');
+    this.log(`게임 시작! (${count}인 · 숫자 1~${cfg.maxNumber} 사용 · 인당 ${perPlayer}장)`);
     this.log(`${this.players[this.state.currentTurn].name} 님이 선입니다.`);
     return this.state;
   }

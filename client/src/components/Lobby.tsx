@@ -14,11 +14,14 @@ interface Props {
 
 const SUIT_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
 const CHIP_PRESETS = [50, 100, 200, 300];
+const MIN_PLAYERS = 3;
+const MAX_PLAYERS = 5;
 
 export default function Lobby({
   roomId, players, myId, myReady, onReady, hostId, startingChips, onSetChips,
 }: Props) {
-  const allReady = players.length >= 2 && players.every(p => p.ready);
+  const enoughPlayers = players.length >= MIN_PLAYERS;
+  const allReady = enoughPlayers && players.every(p => p.ready);
   const isHost = myId === hostId;
 
   return (
@@ -67,7 +70,7 @@ export default function Lobby({
         </div>
 
         <div style={styles.playerList}>
-          <div style={styles.sectionLabel}>플레이어 ({players.length}/6)</div>
+          <div style={styles.sectionLabel}>플레이어 ({players.length}/{MAX_PLAYERS})</div>
           {players.map((p, i) => (
             <div key={p.id} style={{
               ...styles.playerRow,
@@ -85,8 +88,10 @@ export default function Lobby({
               <ScoreChips score={p.score} size={20} />
             </div>
           ))}
-          {players.length < 2 && (
-            <div style={styles.waitMsg}>다른 플레이어를 기다리는 중...</div>
+          {!enoughPlayers && (
+            <div style={styles.waitMsg}>
+              최소 {MIN_PLAYERS}명이 필요합니다 (현재 {players.length}명) · 최대 {MAX_PLAYERS}명
+            </div>
           )}
         </div>
 

@@ -182,12 +182,24 @@ export function canPlay(incoming: Play, table: Play | null): boolean {
   return comparePlays(table, incoming) > 0;
 }
 
-export function buildDeck(): Tile[] {
+// 렉시오 공식 인원별 구성: 사용 숫자(1~maxNumber) × 4문양, 인당 perPlayer장
+//   3명: 1~9 (36장) 12장씩 / 4명: 1~13 (52장) 13장씩 / 5명: 1~15 (60장) 12장씩
+export const PLAYER_CONFIG: Record<number, { maxNumber: number; perPlayer: number }> = {
+  3: { maxNumber: 9, perPlayer: 12 },
+  4: { maxNumber: 13, perPlayer: 13 },
+  5: { maxNumber: 15, perPlayer: 12 },
+};
+
+export const MIN_PLAYERS = 3;
+export const MAX_PLAYERS = 5;
+
+// 숫자 1~maxNumber 만 사용하는 덱 생성 (1,2는 항상 최고 서열로 포함됨)
+export function buildDeck(maxNumber: number = 15): Tile[] {
   const suits: Suit[] = ['cloud', 'star', 'moon', 'sun'];
-  const numbers: TileNumber[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
   const deck: Tile[] = [];
   for (const suit of suits) {
-    for (const number of numbers) {
+    for (let n = 1; n <= maxNumber; n++) {
+      const number = n as TileNumber;
       deck.push({ suit, number, id: `${suit}_${number}` });
     }
   }
