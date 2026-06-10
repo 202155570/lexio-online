@@ -36,10 +36,10 @@ export default function RoundResultScreen({ results, round, onContinue }: Props)
               <span style={{ width: colW, textAlign: 'right', color: '#aaa' }}>{r.tilesLeft}장</span>
               <span style={{
                 width: colW, textAlign: 'right',
-                color: r.pointsGained > 0 ? '#2ecc71' : '#888',
+                color: r.pointsGained > 0 ? '#2ecc71' : r.pointsGained < 0 ? '#e74c3c' : '#888',
                 fontWeight: 700,
               }}>
-                +{r.pointsGained}
+                {r.pointsGained > 0 ? '+' : ''}{r.pointsGained}
               </span>
               <span style={{ width: colW, textAlign: 'right', color: '#f1c40f', fontWeight: 700 }}>
                 {r.totalScore}

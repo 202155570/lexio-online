@@ -24,6 +24,8 @@ export default function App() {
   const [myReady, setMyReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roundResults, setRoundResults] = useState<RoundResult[] | null>(null);
+  const [hostId, setHostId] = useState<string | null>(null);
+  const [startingChips, setStartingChips] = useState(100);
 
   const showError = useCallback((msg: string) => {
     setError(msg);
@@ -31,23 +33,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    socket.on('roomJoined', ({ roomId: rid, playerId, players: ps }) => {
+    socket.on('roomJoined', ({ roomId: rid, playerId, players: ps, hostId: hid, startingChips: chips }) => {
       setMyId(playerId);
       setRoomId(rid);
       setPlayers(ps);
+      setHostId(hid);
+      setStartingChips(chips);
       setScreen('lobby');
-    });
-
-    socket.on('playerJoined', (p) => {
-      setPlayers(prev => [...prev.filter(x => x.id !== p.id), p]);
     });
 
     socket.on('playerLeft', (id) => {
       setPlayers(prev => prev.filter(p => p.id !== id));
     });
 
-    socket.on('readyUpdate', (ps) => {
+    socket.on('lobbyUpdate', ({ players: ps, hostId: hid, startingChips: chips }) => {
       setPlayers(ps);
+      setHostId(hid);
+      setStartingChips(chips);
       setMyReady(ps.find((p: PlayerPublic) => p.id === socket.id)?.ready ?? false);
     });
 
@@ -87,9 +89,8 @@ export default function App() {
 
     return () => {
       socket.off('roomJoined');
-      socket.off('playerJoined');
       socket.off('playerLeft');
-      socket.off('readyUpdate');
+      socket.off('lobbyUpdate');
       socket.off('gameStarted');
       socket.off('gameStateUpdate');
       socket.off('playMade');
@@ -111,6 +112,10 @@ export default function App() {
   const handleReady = (ready: boolean) => {
     setMyReady(ready);
     socket.emit('setReady', ready);
+  };
+
+  const handleSetChips = (amount: number) => {
+    socket.emit('setStartingChips', amount);
   };
 
   const handlePlay = (tiles: Tile[]) => {
@@ -149,6 +154,9 @@ export default function App() {
       myId={myId}
       myReady={myReady}
       onReady={handleReady}
+      hostId={hostId}
+      startingChips={startingChips}
+      onSetChips={handleSetChips}
     />;
   }
 

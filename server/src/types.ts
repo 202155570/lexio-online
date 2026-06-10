@@ -48,9 +48,10 @@ export interface GameState {
 
 // Socket events server → client
 export interface ServerToClientEvents {
-  roomJoined: (data: { roomId: string; playerId: string; players: PlayerPublic[] }) => void;
+  roomJoined: (data: { roomId: string; playerId: string; players: PlayerPublic[]; hostId: string | null; startingChips: number }) => void;
   playerJoined: (player: PlayerPublic) => void;
   playerLeft: (playerId: string) => void;
+  lobbyUpdate: (data: { players: PlayerPublic[]; hostId: string | null; startingChips: number }) => void;
   gameStarted: (data: { tiles: Tile[]; state: GameStatePublic }) => void;
   gameStateUpdate: (state: GameStatePublic) => void;
   yourTurn: () => void;
@@ -59,13 +60,13 @@ export interface ServerToClientEvents {
   roundEnded: (data: { results: RoundResult[]; newState: GameStatePublic }) => void;
   gameEnded: (results: RoundResult[]) => void;
   error: (msg: string) => void;
-  readyUpdate: (players: PlayerPublic[]) => void;
 }
 
 // Socket events client → server
 export interface ClientToServerEvents {
   joinRoom: (data: { roomId: string; playerName: string }) => void;
   setReady: (ready: boolean) => void;
+  setStartingChips: (amount: number) => void;
   playTiles: (tiles: Tile[]) => void;
   pass: () => void;
   leaveRoom: () => void;

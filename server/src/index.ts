@@ -42,6 +42,13 @@ function getOrCreateRoom(roomId: string): GameRoom {
   return rooms.get(roomId)!;
 }
 
+function publicPlayers(room: GameRoom) {
+  return room.getPlayers().map(p => ({
+    id: p.id, name: p.name, tileCount: p.tiles.length,
+    passed: p.passed, finishOrder: p.finishOrder, score: p.score, ready: p.ready,
+  }));
+}
+
 io.on('connection', (socket) => {
   let currentRoomId: string | null = null;
   let currentPlayerId = socket.id;
@@ -66,15 +73,28 @@ io.on('connection', (socket) => {
     socket.emit('roomJoined', {
       roomId,
       playerId: socket.id,
-      players: room.getPlayers().map(p => ({
-        id: p.id, name: p.name, tileCount: p.tiles.length,
-        passed: p.passed, score: p.score, ready: p.ready,
-      })),
+      players: publicPlayers(room),
+      hostId: room.hostId,
+      startingChips: room.getStartingChips(),
     });
 
-    socket.to(roomId).emit('playerJoined', {
-      id: socket.id, name: playerName, tileCount: 0,
-      passed: false, score: 0, ready: false,
+    // 입장/방장/칩 상태를 방 전체에 동기화
+    io.to(roomId).emit('lobbyUpdate', {
+      players: publicPlayers(room),
+      hostId: room.hostId,
+      startingChips: room.getStartingChips(),
+    });
+  });
+
+  socket.on('setStartingChips', (amount) => {
+    if (!currentRoomId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+    if (!room.setStartingChips(socket.id, amount)) return;
+    io.to(currentRoomId).emit('lobbyUpdate', {
+      players: publicPlayers(room),
+      hostId: room.hostId,
+      startingChips: room.getStartingChips(),
     });
   });
 
@@ -84,10 +104,11 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     room.setReady(socket.id, ready);
-    io.to(currentRoomId).emit('readyUpdate', room.getPlayers().map(p => ({
-      id: p.id, name: p.name, tileCount: p.tiles.length,
-      passed: p.passed, score: p.score, ready: p.ready,
-    })));
+    io.to(currentRoomId).emit('lobbyUpdate', {
+      players: publicPlayers(room),
+      hostId: room.hostId,
+      startingChips: room.getStartingChips(),
+    });
 
     if (room.canStart()) {
       const state = room.startGame();
@@ -164,27 +185,32 @@ io.on('connection', (socket) => {
     io.to(nextPlayer.id).emit('yourTurn');
   });
 
-  socket.on('leaveRoom', () => {
+  const handleLeave = () => {
     if (!currentRoomId) return;
     const room = rooms.get(currentRoomId);
     if (room) {
       room.removePlayer(socket.id);
       socket.to(currentRoomId).emit('playerLeft', socket.id);
-      if (room.playerCount() === 0) rooms.delete(currentRoomId);
+      if (room.playerCount() === 0) {
+        rooms.delete(currentRoomId);
+      } else {
+        // 남은 인원에게 방장 재지정/칩 상태 동기화
+        io.to(currentRoomId).emit('lobbyUpdate', {
+          players: publicPlayers(room),
+          hostId: room.hostId,
+          startingChips: room.getStartingChips(),
+        });
+      }
     }
-    socket.leave(currentRoomId);
+  };
+
+  socket.on('leaveRoom', () => {
+    handleLeave();
+    if (currentRoomId) socket.leave(currentRoomId);
     currentRoomId = null;
   });
 
-  socket.on('disconnect', () => {
-    if (!currentRoomId) return;
-    const room = rooms.get(currentRoomId);
-    if (room) {
-      room.removePlayer(socket.id);
-      socket.to(currentRoomId).emit('playerLeft', socket.id);
-      if (room.playerCount() === 0) rooms.delete(currentRoomId);
-    }
-  });
+  socket.on('disconnect', handleLeave);
 });
 
 const PORT = process.env.PORT ?? 3001;

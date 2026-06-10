@@ -36,7 +36,10 @@ interface Props {
 export default function ScoreChips({ score, size = 28, showTotal = true }: Props) {
   const stacks = decompose(score);
 
-  if (score <= 0) {
+  if (score < 0) {
+    return <span style={{ fontSize: 13, color: '#e74c3c', fontWeight: 700 }}>{score}점</span>;
+  }
+  if (score === 0) {
     return <span style={{ fontSize: 12, color: '#888' }}>0점</span>;
   }
 

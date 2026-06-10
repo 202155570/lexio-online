@@ -7,12 +7,19 @@ interface Props {
   myId: string;
   myReady: boolean;
   onReady: (r: boolean) => void;
+  hostId: string | null;
+  startingChips: number;
+  onSetChips: (amount: number) => void;
 }
 
 const SUIT_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
+const CHIP_PRESETS = [50, 100, 200, 300];
 
-export default function Lobby({ roomId, players, myId, myReady, onReady }: Props) {
+export default function Lobby({
+  roomId, players, myId, myReady, onReady, hostId, startingChips, onSetChips,
+}: Props) {
   const allReady = players.length >= 2 && players.every(p => p.ready);
+  const isHost = myId === hostId;
 
   return (
     <div style={styles.container}>
@@ -20,6 +27,43 @@ export default function Lobby({ roomId, players, myId, myReady, onReady }: Props
         <h1 style={styles.title}>렉시오 온라인</h1>
         <div style={styles.roomBadge}>
           방 코드: <span style={{ fontWeight: 700, letterSpacing: 2 }}>{roomId}</span>
+        </div>
+
+        {/* 시작 칩 설정 (방장만 변경 가능) */}
+        <div style={styles.chipPanel}>
+          <div style={styles.chipHeader}>
+            <span style={styles.sectionLabel}>시작 칩</span>
+            <span style={styles.chipValue}>{startingChips}점</span>
+          </div>
+          {isHost ? (
+            <div style={styles.chipPresets}>
+              {CHIP_PRESETS.map(v => (
+                <button
+                  key={v}
+                  onClick={() => onSetChips(v)}
+                  style={{
+                    ...styles.chipBtn,
+                    ...(startingChips === v ? styles.chipBtnActive : {}),
+                  }}
+                >{v}</button>
+              ))}
+              <input
+                type="number"
+                min={10}
+                max={9999}
+                placeholder="직접"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const v = Number((e.target as HTMLInputElement).value);
+                    if (v >= 10) onSetChips(v);
+                  }
+                }}
+                style={styles.chipInput}
+              />
+            </div>
+          ) : (
+            <div style={styles.chipHostNote}>방장이 설정합니다</div>
+          )}
         </div>
 
         <div style={styles.playerList}>
@@ -31,7 +75,9 @@ export default function Lobby({ roomId, players, myId, myReady, onReady }: Props
             }}>
               <div style={{ ...styles.colorDot, background: SUIT_COLORS[i % 4] }} />
               <span style={{ flex: 1 }}>
-                {p.name} {p.id === myId && <span style={styles.youBadge}>나</span>}
+                {p.name}
+                {p.id === hostId && <span style={styles.hostBadge}>방장</span>}
+                {p.id === myId && <span style={styles.youBadge}>나</span>}
               </span>
               <span style={{ ...styles.readyBadge, color: p.ready ? '#2ecc71' : '#e74c3c' }}>
                 {p.ready ? '준비 완료' : '대기 중'}
@@ -74,9 +120,36 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh', padding: 20,
   },
   card: {
-    background: '#16213e', borderRadius: 16, padding: '40px 48px',
+    background: '#16213e', borderRadius: 16, padding: '36px 32px',
     maxWidth: 480, width: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
     border: '1px solid rgba(255,255,255,0.07)',
+  },
+  chipPanel: {
+    background: 'rgba(0,0,0,0.2)', borderRadius: 10,
+    padding: '12px 14px', marginBottom: 20,
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  chipHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  chipValue: { fontSize: 16, fontWeight: 800, color: '#f1c40f' },
+  chipPresets: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  chipBtn: {
+    flex: 1, minWidth: 48, padding: '8px 0', borderRadius: 6,
+    border: '1px solid #444', background: 'transparent', color: '#ccc',
+    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  },
+  chipBtnActive: { background: '#f1c40f', color: '#000', borderColor: '#f1c40f' },
+  chipInput: {
+    width: 64, padding: '8px 6px', borderRadius: 6,
+    border: '1px solid #444', background: 'rgba(255,255,255,0.05)',
+    color: '#fff', fontSize: 14, textAlign: 'center',
+  },
+  chipHostNote: { fontSize: 13, color: '#888' },
+  hostBadge: {
+    fontSize: 10, background: '#f1c40f', color: '#000',
+    padding: '1px 6px', borderRadius: 4, marginLeft: 6, fontWeight: 700,
   },
   title: {
     fontSize: 32, fontWeight: 800, textAlign: 'center',

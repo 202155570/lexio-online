@@ -2,13 +2,14 @@ import type { Tile } from '../game/types';
 import { NUMBER_RANK } from '../game/types';
 
 // Sprite sheet: 1629×656, 4 rows × 15 cols
-// Row order (top→bottom): moon(달), star(별), cloud(구름), sun(해)
+// 원본 이미지 줄 순서(위→아래)를 한자/심볼로 확인:
+//   row0 Blue=구름(雲), row1 Yellow=별(星), row2 Green=달(月), row3 Red=해(日 ◉)
 // Col order (left→right): 3,4,5,6,7,8,9,10,11,12,13,14,15,1,2
 const TILE_W = 1629 / 15;   // ~108.6
 const TILE_H = 656 / 4;     // 164
 
 const SUIT_ROW: Record<string, number> = {
-  moon: 0, star: 1, cloud: 2, sun: 3,
+  cloud: 0, star: 1, moon: 2, sun: 3,
 };
 
 // Number → column index (rank order from 3 to 2)

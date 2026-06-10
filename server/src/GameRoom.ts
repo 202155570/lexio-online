@@ -10,10 +10,32 @@ export class GameRoom {
   id: string;
   private players: Player[] = [];
   private state: GameState;
+  private startingChips = 100; // 방장이 게임 시작 전 설정 가능
 
   constructor(roomId: string) {
     this.id = roomId;
     this.state = this.emptyState(roomId);
+  }
+
+  // 방장 = 가장 먼저 입장한(남아있는) 플레이어
+  get hostId(): string | null {
+    return this.players[0]?.id ?? null;
+  }
+
+  getStartingChips(): number {
+    return this.startingChips;
+  }
+
+  // 방장만, 그리고 첫 라운드 시작 전(round===0)에만 변경 가능
+  setStartingChips(playerId: string, amount: number): boolean {
+    if (playerId !== this.hostId) return false;
+    if (this.state.round !== 0) return false;
+    const clamped = Math.max(10, Math.min(9999, Math.floor(amount)));
+    this.startingChips = clamped;
+    // 아직 게임 전이므로 전원 칩을 새 값으로 맞춤
+    this.players.forEach(p => { p.score = clamped; });
+    this.log(`방장이 시작 칩을 ${clamped}점으로 설정했습니다.`);
+    return true;
   }
 
   private emptyState(roomId: string): GameState {
@@ -37,7 +59,7 @@ export class GameRoom {
 
     const player: Player = {
       id, name, tiles: [], passed: false,
-      score: 0, ready: false,
+      score: this.startingChips, ready: false,
     };
     this.players.push(player);
     this.state.players = this.players;
@@ -124,21 +146,10 @@ export class GameRoom {
 
     this.log(`${player.name}: ${handType} (${tiles.length}장)`);
 
-    // check if player finished
+    // 렉시오 룰: 한 명이라도 패를 모두 내려놓는 순간 라운드 종료
     if (player.tiles.length === 0) {
-      const finishedCount = this.players.filter(p => p.finishOrder !== undefined).length;
-      player.finishOrder = finishedCount + 1;
-      this.log(`${player.name} 님이 ${player.finishOrder}등으로 완료!`);
-    }
-
-    // check if game should end (all but one finished, or all finished)
-    const remaining = this.players.filter(p => p.tiles.length > 0);
-    if (remaining.length <= 1) {
-      if (remaining.length === 1) {
-        const last = remaining[0];
-        last.finishOrder = this.players.length;
-        this.log(`${last.name} 님이 꼴등입니다.`);
-      }
+      player.finishOrder = 1;
+      this.log(`🎉 ${player.name} 님이 패를 모두 내려놨습니다! 라운드 종료`);
       this.state.phase = 'finished';
       return { ok: true, ended: true };
     }
@@ -193,41 +204,44 @@ export class GameRoom {
   }
 
   calculateResults(): RoundResult[] {
-    const finishOrders = this.players.map((p, i) => ({
-      ...p,
-      finishOrder: p.finishOrder ?? this.players.length,
-    }));
-
-    // Sort by finish order
-    const sorted = [...finishOrders].sort((a, b) => a.finishOrder - b.finishOrder);
-
-    // Effective tile count (×2 if holding any "2" tile)
+    // 유효 타일 수: 2 타일을 보유하면 남은 타일 수를 ×2로 간주 (페널티)
     const effectiveTiles = (p: Player) => {
       const hasTwo = p.tiles.some(t => t.number === 2);
       return hasTwo ? p.tiles.length * 2 : p.tiles.length;
     };
 
+    // 등수 매기기: 패가 적을수록 높은 등수 (완주자=0장이 1등).
+    // 동률(남은 타일 수 같음)은 공동 순위로 처리.
+    const sortedByTiles = [...this.players].sort((a, b) => a.tiles.length - b.tiles.length);
+    const orderOf = new Map<string, number>();
+    let rank = 0;
+    sortedByTiles.forEach((p, i) => {
+      if (i === 0 || p.tiles.length !== sortedByTiles[i - 1].tiles.length) {
+        rank = i + 1; // 표준 경쟁 순위 (1,2,2,4 ...)
+      }
+      orderOf.set(p.id, rank);
+      p.finishOrder = rank;
+    });
+
+    // 제로섬 정산: 각 플레이어는 다른 모든 플레이어와 유효 타일 수 차이를 칩으로 교환.
+    //   내 순이익 = Σ(상대 유효타일 - 내 유효타일)
+    // → 패가 적은 사람이 많은 사람에게서 칩을 가져오고, 합계는 항상 0 (칩 보존).
     const results: RoundResult[] = [];
     for (const player of this.players) {
       const myEff = effectiveTiles(player);
-      let points = 0;
+      let net = 0;
       for (const other of this.players) {
         if (other === player) continue;
-        const otherOrder = other.finishOrder ?? this.players.length;
-        const myOrder = player.finishOrder ?? this.players.length;
-        if (otherOrder > myOrder) {
-          points += effectiveTiles(other) - myEff;
-        }
+        net += effectiveTiles(other) - myEff;
       }
-      points = Math.max(0, points);
-      player.score += points;
+      player.score += net;
 
       results.push({
         playerId: player.id,
         name: player.name,
-        finishOrder: player.finishOrder ?? this.players.length,
+        finishOrder: orderOf.get(player.id) ?? this.players.length,
         tilesLeft: player.tiles.length,
-        pointsGained: points,
+        pointsGained: net,
         totalScore: player.score,
       });
     }
