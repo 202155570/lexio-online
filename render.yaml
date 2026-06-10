@@ -1,0 +1,12 @@
+# Render.com 배포 설정 (https://render.com)
+# 이 저장소를 GitHub에 올린 뒤 Render에서 "New > Blueprint"로 연결하면 자동 배포됩니다.
+services:
+  - type: web
+    name: lexio
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20

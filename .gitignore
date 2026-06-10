@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.claude/settings.local.json
+
+# 안전장치: tsc가 실수로 src에 emit한 컴파일 산출물
+client/src/**/*.js
