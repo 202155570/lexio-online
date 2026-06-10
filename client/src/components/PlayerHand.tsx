@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Tile, Play } from '../game/types';
 import { HAND_LABEL } from '../game/types';
 import { classifyHand, canPlay, sortTiles, sortTilesBySuit } from '../game/rules';
@@ -33,6 +34,7 @@ export default function PlayerHand({
   const [manualOrder, setManualOrder] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
 
   // 포인터(마우스/터치 통합) 드래그 추적
   const drag = useRef<{ id: string | null; startX: number; startY: number; dragging: boolean }>(
@@ -85,52 +87,68 @@ export default function PlayerHand({
     setAutoSort(false);
   };
 
-  const reorder = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const order = orderedTiles.map(t => t.id);
-    const from = order.indexOf(fromId);
-    const to = order.indexOf(toId);
-    if (from < 0 || to < 0) return;
-    order.splice(from, 1);
-    order.splice(to, 0, fromId);
-    setManualOrder(order);
-  };
+  // window 핸들러가 최신 값을 읽도록 ref 동기화 (캡처 의존 X → 커서 어디든 추적)
+  const overIdRef = useRef(overId); overIdRef.current = overId;
+  const autoSortRef = useRef(autoSort); autoSortRef.current = autoSort;
+  const isMyTurnRef = useRef(isMyTurn); isMyTurnRef.current = isMyTurn;
+  const orderedRef = useRef(orderedTiles); orderedRef.current = orderedTiles;
 
   // ===== 포인터 이벤트: 탭=선택, 드래그=재배치 (마우스/터치 공통) =====
+  // 타일에서 시작만 잡고, 이동/종료는 window에서 처리 → 커서가 테이블 위로 가도 끊기지 않음
   const onPointerDown = (e: React.PointerEvent, tileId: string) => {
     drag.current = { id: tileId, startX: e.clientX, startY: e.clientY, dragging: false };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d.id) return;
-    const dist = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
-    if (!d.dragging && dist > TAP_THRESHOLD && !autoSort) {
-      d.dragging = true;
-      setDragId(d.id);
-    }
-    if (d.dragging) {
-      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-      const over = el?.closest('[data-tile-id]')?.getAttribute('data-tile-id');
-      if (over) setOverId(over);
-    }
-  };
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const d = drag.current;
+      if (!d.id) return;
+      const dist = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if (!d.dragging && dist > TAP_THRESHOLD && !autoSortRef.current) {
+        d.dragging = true;
+        setDragId(d.id);
+      }
+      if (d.dragging) {
+        setDragPos({ x: e.clientX, y: e.clientY }); // 손에 들린 고스트 위치
+        const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+        const over = el?.closest('[data-tile-id]')?.getAttribute('data-tile-id') ?? null;
+        setOverId(over);
+      }
+    };
+    const up = () => {
+      const d = drag.current;
+      if (!d.id) return;
+      if (d.dragging) {
+        const toId = overIdRef.current;
+        if (toId && toId !== d.id) {
+          const order = orderedRef.current.map(t => t.id);
+          const from = order.indexOf(d.id);
+          const to = order.indexOf(toId);
+          if (from >= 0 && to >= 0) {
+            order.splice(from, 1);
+            order.splice(to, 0, d.id);
+            setManualOrder(order);
+          }
+        }
+      } else if (isMyTurnRef.current) {
+        toggle(d.id); // 탭 → 선택 토글
+      }
+      drag.current = { id: null, startX: 0, startY: 0, dragging: false };
+      setDragId(null);
+      setOverId(null);
+      setDragPos(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [toggle]);
 
-  const onPointerUp = () => {
-    const d = drag.current;
-    if (!d.id) return;
-    if (d.dragging) {
-      if (overId) reorder(d.id, overId);
-    } else if (isMyTurn) {
-      toggle(d.id); // 탭 → 선택 토글
-    }
-    drag.current = { id: null, startX: 0, startY: 0, dragging: false };
-    setDragId(null);
-    setOverId(null);
-  };
-
-  const tileSize = isMobile ? 'mobile' : 'normal';
+  const draggingTile = dragId ? orderedTiles.find(t => t.id === dragId) : null;
 
   return (
     <div style={styles.container}>
@@ -193,33 +211,44 @@ export default function PlayerHand({
 
       <div style={styles.handContainer}>
         <div style={{ ...styles.tileRow, minHeight: isMobile ? 90 : 120 }}>
-          {orderedTiles.map(tile => (
-            <div
-              key={tile.id}
-              data-tile-id={tile.id}
-              onPointerDown={(e) => onPointerDown(e, tile.id)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              style={{
-                display: 'inline-block',
-                paddingLeft: overId === tile.id && dragId !== tile.id ? 8 : 0,
-                borderLeft: overId === tile.id && dragId !== tile.id
-                  ? '2px solid #ffd700' : '2px solid transparent',
-                opacity: dragId === tile.id ? 0.4 : 1,
-                cursor: !autoSort ? 'grab' : 'pointer',
-                // 수동 모드: 드래그가 스크롤에 막히지 않도록 / 자동 모드: 가로 스크롤 허용
-                touchAction: autoSort ? 'pan-x' : 'none',
-                transition: 'padding 0.1s',
-              }}
-            >
-              <TileCard
-                tile={tile}
-                selected={selected.has(tile.id)}
-                selectable={isMyTurn}
-                small={isMobile}
-              />
-            </div>
-          ))}
+          {orderedTiles.map(tile => {
+            const isDragged = dragId === tile.id;
+            const isOver = overId === tile.id && !isDragged;
+            return (
+              <div
+                key={tile.id}
+                data-tile-id={tile.id}
+                onPointerDown={(e) => onPointerDown(e, tile.id)}
+                style={{
+                  display: 'inline-block',
+                  paddingLeft: isOver ? 10 : 0,
+                  borderLeft: isOver ? '3px solid #ffd700' : '3px solid transparent',
+                  cursor: !autoSort ? 'grab' : 'pointer',
+                  // 수동 모드: 드래그가 스크롤에 막히지 않도록 / 자동 모드: 가로 스크롤 허용
+                  touchAction: autoSort ? 'pan-x' : 'none',
+                  transition: 'padding 0.1s',
+                }}
+              >
+                {isDragged ? (
+                  // 들어올린 타일 자리는 빈 placeholder로 표시
+                  <div style={{
+                    width: isMobile ? 54 : 72,
+                    height: Math.round((isMobile ? 54 : 72) * 133 / 92),
+                    borderRadius: 7,
+                    border: '2px dashed rgba(255,215,0,0.5)',
+                    background: 'rgba(255,255,255,0.04)',
+                  }} />
+                ) : (
+                  <TileCard
+                    tile={tile}
+                    selected={selected.has(tile.id)}
+                    selectable={isMyTurn}
+                    small={isMobile}
+                  />
+                )}
+              </div>
+            );
+          })}
           {tiles.length === 0 && <div style={styles.empty}>타일 없음</div>}
         </div>
       </div>
@@ -258,6 +287,25 @@ export default function PlayerHand({
           선택 해제
         </button>
       </div>
+
+      {/* 드래그 중인 타일: 커서를 따라 손에 들린 것처럼 떠다님.
+          backdrop-filter 컨테이너가 fixed 기준이 되는 걸 피하려고 body로 portal */}
+      {draggingTile && dragPos && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: dragPos.x,
+            top: dragPos.y,
+            transform: 'translate(-50%, -115%) rotate(-5deg) scale(1.12)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            filter: 'drop-shadow(0 14px 16px rgba(0,0,0,0.55))',
+          }}
+        >
+          <TileCard tile={draggingTile} small={isMobile} dragging />
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
