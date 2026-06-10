@@ -2,16 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>렉시오 온라인</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
+      html, body {
         font-family: 'Segoe UI', system-ui, sans-serif;
         background: #1a1a2e;
         color: #eee;
         min-height: 100vh;
+        /* 모바일: 탭 하이라이트 제거 + 빠른 탭 반응 */
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        overscroll-behavior: none;
       }
+      /* 입력창 포커스 시 iOS 자동 확대 방지 (16px 이상) */
+      input { font-size: 16px; }
     </style>
   </head>
   <body>

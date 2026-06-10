@@ -1,4 +1,5 @@
 import type { RoundResult } from '../game/types';
+import { useIsMobile } from '../game/useIsMobile';
 
 interface Props {
   results: RoundResult[];
@@ -9,35 +10,38 @@ interface Props {
 const MEDALS = ['🥇', '🥈', '🥉', '4위', '5위', '6위'];
 
 export default function RoundResultScreen({ results, round, onContinue }: Props) {
+  const isMobile = useIsMobile();
+  const colW = isMobile ? 52 : 70;
+
   return (
     <div style={styles.overlay}>
-      <div style={styles.card}>
+      <div style={{ ...styles.card, padding: isMobile ? '24px 18px' : '32px 40px' }}>
         <h2 style={styles.title}>라운드 {round} 결과</h2>
 
         <div style={styles.table}>
           <div style={styles.headerRow}>
-            <span style={{ width: 40 }}>순위</span>
-            <span style={{ flex: 1 }}>이름</span>
-            <span style={{ width: 70, textAlign: 'right' }}>남은 패</span>
-            <span style={{ width: 70, textAlign: 'right' }}>+점수</span>
-            <span style={{ width: 70, textAlign: 'right' }}>누적</span>
+            <span style={{ width: isMobile ? 32 : 40 }}>순위</span>
+            <span style={{ flex: 1, minWidth: 0 }}>이름</span>
+            <span style={{ width: colW, textAlign: 'right' }}>남은 패</span>
+            <span style={{ width: colW, textAlign: 'right' }}>+점수</span>
+            <span style={{ width: colW, textAlign: 'right' }}>누적</span>
           </div>
           {results.map((r) => (
             <div key={r.playerId} style={{
               ...styles.row,
               background: r.finishOrder === 1 ? 'rgba(255,215,0,0.08)' : 'transparent',
             }}>
-              <span style={{ width: 40, fontSize: 18 }}>{MEDALS[r.finishOrder - 1] ?? r.finishOrder}</span>
-              <span style={{ flex: 1, fontWeight: 600 }}>{r.name}</span>
-              <span style={{ width: 70, textAlign: 'right', color: '#aaa' }}>{r.tilesLeft}장</span>
+              <span style={{ width: isMobile ? 32 : 40, fontSize: 18 }}>{MEDALS[r.finishOrder - 1] ?? r.finishOrder}</span>
+              <span style={{ flex: 1, minWidth: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+              <span style={{ width: colW, textAlign: 'right', color: '#aaa' }}>{r.tilesLeft}장</span>
               <span style={{
-                width: 70, textAlign: 'right',
+                width: colW, textAlign: 'right',
                 color: r.pointsGained > 0 ? '#2ecc71' : '#888',
                 fontWeight: 700,
               }}>
                 +{r.pointsGained}
               </span>
-              <span style={{ width: 70, textAlign: 'right', color: '#f1c40f', fontWeight: 700 }}>
+              <span style={{ width: colW, textAlign: 'right', color: '#f1c40f', fontWeight: 700 }}>
                 {r.totalScore}
               </span>
             </div>
@@ -59,8 +63,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   card: {
-    background: '#16213e', borderRadius: 16, padding: '32px 40px',
-    minWidth: 400, boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+    background: '#16213e', borderRadius: 16,
+    width: '100%', maxWidth: 460, margin: '0 16px',
+    boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
     border: '1px solid rgba(255,255,255,0.08)',
   },
   title: {

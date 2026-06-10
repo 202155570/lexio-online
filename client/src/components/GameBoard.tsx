@@ -1,4 +1,5 @@
 import type { Tile, GameStatePublic, Play, PlayerPublic } from '../game/types';
+import { useIsMobile } from '../game/useIsMobile';
 import TableArea from './TableArea';
 import PlayerHand from './PlayerHand';
 import OtherPlayer from './OtherPlayer';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, error }: Props) {
+  const isMobile = useIsMobile();
   const myIndex = gameState.players.findIndex(p => p.id === myId);
   const myPlayer = gameState.players[myIndex];
   const isMyTurn = gameState.currentTurn === myIndex;
@@ -21,10 +23,6 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
   const lastPlayPlayer = gameState.lastPlayerId
     ? gameState.players.find(p => p.id === gameState.lastPlayerId)
     : null;
-
-  // Arrange other players: top (2 across), sides for more
-  const top = otherPlayers.slice(0, Math.min(3, otherPlayers.length));
-  const sides = otherPlayers.slice(3);
 
   return (
     <div style={styles.container}>
@@ -38,9 +36,9 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
         </span>
       </div>
 
-      {/* Other players - top area */}
-      <div style={styles.othersTop}>
-        {top.map(p => (
+      {/* Other players - horizontally scrollable row (handles up to 5 others) */}
+      <div style={{ ...styles.othersTop, padding: isMobile ? '8px 10px' : '12px 16px' }}>
+        {otherPlayers.map(p => (
           <OtherPlayer
             key={p.id}
             player={p}
@@ -51,7 +49,7 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
       </div>
 
       {/* Table center */}
-      <div style={styles.center}>
+      <div style={{ ...styles.center, padding: isMobile ? '0 10px' : '0 16px' }}>
         <TableArea
           lastPlay={gameState.lastPlay}
           lastPlayerName={lastPlayPlayer?.name ?? ''}
@@ -78,7 +76,7 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex', flexDirection: 'column',
-    height: '100vh', overflow: 'hidden',
+    height: '100dvh', maxHeight: '100dvh', overflow: 'hidden',
     background: 'linear-gradient(160deg, #0f3460 0%, #1a1a2e 100%)',
   },
   error: {
@@ -98,11 +96,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffd700',
   },
   othersTop: {
-    display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap',
-    padding: '12px 16px',
+    display: 'flex', gap: 10, justifyContent: 'flex-start',
+    overflowX: 'auto', flexShrink: 0,
   },
   center: {
-    flex: 1, padding: '0 16px',
+    flex: 1,
     display: 'flex', alignItems: 'center',
     overflow: 'hidden',
   },
