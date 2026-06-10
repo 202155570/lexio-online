@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { Tile, GameStatePublic, Play, PlayerPublic } from '../game/types';
 import { useIsMobile } from '../game/useIsMobile';
 import TableArea from './TableArea';
 import PlayerHand from './PlayerHand';
 import OtherPlayer from './OtherPlayer';
+import HelpModal from './HelpModal';
 
 interface Props {
   myId: string;
@@ -15,6 +17,7 @@ interface Props {
 
 export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, error }: Props) {
   const isMobile = useIsMobile();
+  const [showHelp, setShowHelp] = useState(false);
   const myIndex = gameState.players.findIndex(p => p.id === myId);
   const myPlayer = gameState.players[myIndex];
   const isMyTurn = gameState.currentTurn === myIndex;
@@ -34,7 +37,12 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
         <span style={styles.turnIndicator}>
           {isMyTurn ? '내 차례!' : `${gameState.players[gameState.currentTurn]?.name} 차례`}
         </span>
+        <button onClick={() => setShowHelp(true)} style={styles.helpBtn} title="족보 도움말">
+          ? 족보
+        </button>
       </div>
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {/* Other players - horizontally scrollable row (handles up to 5 others) */}
       <div style={{ ...styles.othersTop, padding: isMobile ? '8px 10px' : '12px 16px' }}>
@@ -90,10 +98,16 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(0,0,0,0.3)',
     borderBottom: '1px solid rgba(255,255,255,0.06)',
   },
-  roundLabel: { fontSize: 13, color: '#888' },
+  roundLabel: { fontSize: 13, color: '#888', flex: 1 },
   turnIndicator: {
     fontSize: 14, fontWeight: 700,
-    color: '#ffd700',
+    color: '#ffd700', flex: 1, textAlign: 'center',
+  },
+  helpBtn: {
+    flex: 1, display: 'flex', justifyContent: 'flex-end',
+    border: 'none', background: 'transparent', cursor: 'pointer',
+    color: '#5dade2', fontSize: 13, fontWeight: 700,
+    padding: '4px 0',
   },
   othersTop: {
     display: 'flex', gap: 10, justifyContent: 'flex-start',

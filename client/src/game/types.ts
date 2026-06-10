@@ -44,6 +44,8 @@ export interface RoundResult {
   name: string;
   finishOrder: number;
   tilesLeft: number;
+  effectiveTiles: number;
+  doubled: boolean;
   pointsGained: number;
   totalScore: number;
 }

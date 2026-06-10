@@ -239,11 +239,14 @@ export class GameRoom {
       }
       player.score += net;
 
+      const hasTwo = player.tiles.some(t => t.number === 2);
       results.push({
         playerId: player.id,
         name: player.name,
         finishOrder: orderOf.get(player.id) ?? this.players.length,
         tilesLeft: player.tiles.length,
+        effectiveTiles: myEff,
+        doubled: hasTwo && player.tiles.length > 0,
         pointsGained: net,
         totalScore: player.score,
       });

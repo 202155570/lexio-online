@@ -175,6 +175,7 @@ export default function App() {
           <RoundResultScreen
             results={roundResults}
             round={gameState.round}
+            myId={myId}
             onContinue={handleContinue}
           />
         )}

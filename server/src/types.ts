@@ -99,6 +99,8 @@ export interface RoundResult {
   name: string;
   finishOrder: number;
   tilesLeft: number;
+  effectiveTiles: number; // 점수 계산에 쓰인 유효 타일 수 (2 보유 시 tilesLeft×2)
+  doubled: boolean;       // 2 타일 보유로 ×2 적용 여부
   pointsGained: number;
   totalScore: number;
 }
