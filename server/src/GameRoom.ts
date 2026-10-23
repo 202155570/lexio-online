@@ -1,9 +1,10 @@
+import { randomUUID } from 'crypto';
 import type {
-  Tile, Player, GameState, GamePhase, Play,
+  Tile, Player, GameState, Play,
   PlayerPublic, GameStatePublic, RoundResult,
 } from './types.js';
 import {
-  buildDeck, shuffle, classifyHand, canPlay, NUMBER_RANK,
+  buildDeck, shuffle, classifyHand, canPlay, twoMultiplier,
   PLAYER_CONFIG, MIN_PLAYERS, MAX_PLAYERS,
 } from './rules.js';
 
@@ -31,6 +32,7 @@ export class GameRoom {
   setStartingChips(playerId: string, amount: number): boolean {
     if (playerId !== this.hostId) return false;
     if (this.state.round !== 0) return false;
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) return false;
     const clamped = Math.max(10, Math.min(9999, Math.floor(amount)));
     this.startingChips = clamped;
     // 아직 게임 전이므로 전원 칩을 새 값으로 맞춤
@@ -49,23 +51,51 @@ export class GameRoom {
       lastPlayerId: null,
       tablePassCount: 0,
       round: 0,
+      maxNumber: 15,
       log: [],
     };
   }
 
-  addPlayer(id: string, name: string): boolean {
-    if (this.players.length >= MAX_PLAYERS) return false;
-    if (this.state.phase === 'playing') return false;
-    if (this.players.find(p => p.id === id)) return false;
+  addPlayer(name: string, token: string, socketId: string): Player | null {
+    if (this.players.length >= MAX_PLAYERS) return null;
+    if (this.state.phase === 'playing') return null;
+    if (this.findByToken(token)) return null;
 
     const player: Player = {
-      id, name, tiles: [], passed: false,
+      id: randomUUID(), token, socketId, connected: true,
+      name, tiles: [], passed: false,
       score: this.startingChips, ready: false,
     };
     this.players.push(player);
     this.state.players = this.players;
     this.log(`${name} 님이 입장했습니다.`);
-    return true;
+    return player;
+  }
+
+  findByToken(token: string): Player | undefined {
+    return this.players.find(p => p.token === token);
+  }
+
+  getPlayer(playerId: string): Player | undefined {
+    return this.players.find(p => p.id === playerId);
+  }
+
+  // 같은 토큰으로 돌아온 플레이어를 새 소켓에 다시 연결
+  reconnect(token: string, socketId: string): Player | null {
+    const p = this.findByToken(token);
+    if (!p) return null;
+    const wasDisconnected = !p.connected;
+    p.socketId = socketId;
+    p.connected = true;
+    if (wasDisconnected) this.log(`${p.name} 님이 다시 접속했습니다.`);
+    return p;
+  }
+
+  markDisconnected(playerId: string) {
+    const p = this.getPlayer(playerId);
+    if (!p) return;
+    p.connected = false;
+    this.log(`${p.name} 님의 연결이 끊겼습니다. 재접속을 기다립니다...`);
   }
 
   removePlayer(id: string) {
@@ -74,7 +104,7 @@ export class GameRoom {
   }
 
   setReady(playerId: string, ready: boolean) {
-    const p = this.players.find(p => p.id === playerId);
+    const p = this.getPlayer(playerId);
     if (p) p.ready = ready;
   }
 
@@ -82,7 +112,11 @@ export class GameRoom {
     const n = this.players.length;
     return n >= MIN_PLAYERS && n <= MAX_PLAYERS
       && this.state.phase === 'waiting'
-      && this.players.every(p => p.ready);
+      && this.players.every(p => p.ready && p.connected);
+  }
+
+  isPlaying(): boolean {
+    return this.state.phase === 'playing';
   }
 
   startGame(): GameState {
@@ -108,6 +142,7 @@ export class GameRoom {
     this.state.lastPlay = null;
     this.state.lastPlayerId = null;
     this.state.tablePassCount = 0;
+    this.state.maxNumber = cfg.maxNumber;
     this.state.round++;
     this.state.players = this.players;
     this.log(`게임 시작! (${count}인 · 숫자 1~${cfg.maxNumber} 사용 · 인당 ${perPlayer}장)`);
@@ -116,30 +151,39 @@ export class GameRoom {
   }
 
   playTiles(playerId: string, tiles: Tile[]): { ok: boolean; error?: string; ended?: boolean } {
+    if (this.state.phase !== 'playing') return { ok: false, error: '게임이 진행 중이 아닙니다.' };
     const playerIdx = this.players.findIndex(p => p.id === playerId);
     if (playerIdx < 0) return { ok: false, error: '플레이어를 찾을 수 없습니다.' };
     if (this.state.currentTurn !== playerIdx) return { ok: false, error: '당신의 턴이 아닙니다.' };
-    if (this.state.phase !== 'playing') return { ok: false, error: '게임이 진행 중이 아닙니다.' };
 
     const player = this.players[playerIdx];
 
-    // validate tiles belong to player
-    for (const t of tiles) {
-      if (!player.tiles.find(pt => pt.id === t.id)) {
-        return { ok: false, error: '보유하지 않은 타일입니다.' };
-      }
+    // 클라이언트가 보낸 값은 id만 믿고, 실제 숫자·문양은 서버가 가진 손패에서 가져온다
+    if (!Array.isArray(tiles) || tiles.length === 0) {
+      return { ok: false, error: '낼 타일을 선택하세요.' };
     }
+    const ids = tiles.map(t => t?.id);
+    if (ids.some(id => typeof id !== 'string')) {
+      return { ok: false, error: '유효하지 않은 조합입니다.' };
+    }
+    if (new Set(ids).size !== ids.length) {
+      return { ok: false, error: '같은 타일을 중복해서 낼 수 없습니다.' };
+    }
+    const owned = ids.map(id => player.tiles.find(pt => pt.id === id));
+    if (owned.some(t => !t)) return { ok: false, error: '보유하지 않은 타일입니다.' };
+    const playTiles = owned as Tile[];
 
-    const handType = classifyHand(tiles);
+    const handType = classifyHand(playTiles, this.state.maxNumber);
     if (!handType) return { ok: false, error: '유효하지 않은 조합입니다.' };
 
-    const play: Play = { tiles, handType };
-    if (!canPlay(play, this.state.lastPlay)) {
+    const play: Play = { tiles: playTiles, handType };
+    if (!canPlay(play, this.state.lastPlay, this.state.maxNumber)) {
       return { ok: false, error: '현재 조합보다 낮거나 패를 낼 수 없습니다.' };
     }
 
     // remove tiles from hand
-    player.tiles = player.tiles.filter(pt => !tiles.find(t => t.id === pt.id));
+    const playedIds = new Set(ids);
+    player.tiles = player.tiles.filter(pt => !playedIds.has(pt.id));
     this.state.lastPlay = play;
     this.state.lastPlayerId = playerId;
     this.state.tablePassCount = 0;
@@ -147,7 +191,7 @@ export class GameRoom {
     // reset others' passed state since last play was by this player
     this.players.forEach(p => { p.passed = false; });
 
-    this.log(`${player.name}: ${handType} (${tiles.length}장)`);
+    this.log(`${player.name}: ${handType} (${playTiles.length}장)`);
 
     // 렉시오 룰: 한 명이라도 패를 모두 내려놓는 순간 라운드 종료
     if (player.tiles.length === 0) {
@@ -162,9 +206,11 @@ export class GameRoom {
   }
 
   pass(playerId: string): { ok: boolean; error?: string; newRound?: boolean } {
+    if (this.state.phase !== 'playing') return { ok: false, error: '게임이 진행 중이 아닙니다.' };
     const playerIdx = this.players.findIndex(p => p.id === playerId);
     if (playerIdx < 0) return { ok: false, error: '플레이어를 찾을 수 없습니다.' };
     if (this.state.currentTurn !== playerIdx) return { ok: false, error: '당신의 턴이 아닙니다.' };
+    if (!this.state.lastPlay) return { ok: false, error: '선은 패스할 수 없습니다. 아무 패나 내주세요.' };
 
     const player = this.players[playerIdx];
     player.passed = true;
@@ -174,7 +220,6 @@ export class GameRoom {
     // Count active players (not finished)
     const activePlayers = this.players.filter(p => p.tiles.length > 0);
     // Count passes among active players (excluding last play maker)
-    const lastPlayMakerIdx = this.players.findIndex(p => p.id === this.state.lastPlayerId);
     const otherActive = activePlayers.filter(p => p.id !== this.state.lastPlayerId);
     const allPassed = otherActive.every(p => p.passed);
 
@@ -207,11 +252,8 @@ export class GameRoom {
   }
 
   calculateResults(): RoundResult[] {
-    // 유효 타일 수: 2 타일을 보유하면 남은 타일 수를 ×2로 간주 (페널티)
-    const effectiveTiles = (p: Player) => {
-      const hasTwo = p.tiles.some(t => t.number === 2);
-      return hasTwo ? p.tiles.length * 2 : p.tiles.length;
-    };
+    // 유효 타일 수: 2 타일 한 장마다 남은 타일 수 ×2 (중첩 페널티)
+    const effectiveTiles = (p: Player) => p.tiles.length * twoMultiplier(p.tiles);
 
     // 등수 매기기: 패가 적을수록 높은 등수 (완주자=0장이 1등).
     // 동률(남은 타일 수 같음)은 공동 순위로 처리.
@@ -239,14 +281,13 @@ export class GameRoom {
       }
       player.score += net;
 
-      const hasTwo = player.tiles.some(t => t.number === 2);
       results.push({
         playerId: player.id,
         name: player.name,
         finishOrder: orderOf.get(player.id) ?? this.players.length,
         tilesLeft: player.tiles.length,
         effectiveTiles: myEff,
-        doubled: hasTwo && player.tiles.length > 0,
+        multiplier: player.tiles.length > 0 ? twoMultiplier(player.tiles) : 1,
         pointsGained: net,
         totalScore: player.score,
       });
@@ -268,19 +309,30 @@ export class GameRoom {
     this.state.tablePassCount = 0;
   }
 
+  // 진행 중인 라운드를 정산 없이 무효 처리하고 대기실로 되돌린다
+  abortRound(reason: string) {
+    this.log(`라운드 무효: ${reason}`);
+    this.resetForNextRound();
+  }
+
   getPlayerTiles(playerId: string): Tile[] {
-    return this.players.find(p => p.id === playerId)?.tiles ?? [];
+    return this.getPlayer(playerId)?.tiles ?? [];
+  }
+
+  publicPlayers(): PlayerPublic[] {
+    return this.players.map(toPublic);
   }
 
   getPublicState(): GameStatePublic {
     return {
       roomId: this.state.roomId,
       phase: this.state.phase,
-      players: this.players.map(toPublic),
+      players: this.publicPlayers(),
       currentTurn: this.state.currentTurn,
       lastPlay: this.state.lastPlay,
       lastPlayerId: this.state.lastPlayerId,
       round: this.state.round,
+      maxNumber: this.state.maxNumber,
       log: this.state.log.slice(-20),
     };
   }
@@ -304,5 +356,6 @@ function toPublic(p: Player): PlayerPublic {
     finishOrder: p.finishOrder,
     score: p.score,
     ready: p.ready,
+    connected: p.connected,
   };
 }

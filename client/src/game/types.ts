@@ -26,6 +26,7 @@ export interface PlayerPublic {
   finishOrder?: number;
   score: number;
   ready: boolean;
+  connected: boolean;
 }
 
 export interface GameStatePublic {
@@ -36,6 +37,7 @@ export interface GameStatePublic {
   lastPlay: Play | null;
   lastPlayerId: string | null;
   round: number;
+  maxNumber: number; // 이번 라운드 덱의 최대 숫자 (스트레이트 판정용)
   log: string[];
 }
 
@@ -45,7 +47,7 @@ export interface RoundResult {
   finishOrder: number;
   tilesLeft: number;
   effectiveTiles: number;
-  doubled: boolean;
+  multiplier: number; // 2 타일 배수: 2^(보유한 2 개수)
   pointsGained: number;
   totalScore: number;
 }

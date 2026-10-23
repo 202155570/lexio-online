@@ -13,6 +13,7 @@ interface Props {
   tiles: Tile[];
   isMyTurn: boolean;
   lastPlay: Play | null;
+  maxNumber: number;
   onPlay: (tiles: Tile[]) => void;
   onPass: () => void;
   myName: string;
@@ -22,7 +23,7 @@ interface Props {
 const TAP_THRESHOLD = 8; // px 이내 움직임은 '탭(선택)', 그 이상은 '드래그(재배치)'
 
 export default function PlayerHand({
-  tiles, isMyTurn, lastPlay, onPlay, onPass, myName, myScore,
+  tiles, isMyTurn, lastPlay, maxNumber, onPlay, onPass, myName, myScore,
 }: Props) {
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -59,8 +60,8 @@ export default function PlayerHand({
   }, [tiles.length, autoSort]);
 
   const selectedTiles = orderedTiles.filter(t => selected.has(t.id));
-  const handType = selectedTiles.length > 0 ? classifyHand(selectedTiles) : null;
-  const isValidPlay = handType !== null && canPlay({ tiles: selectedTiles, handType }, lastPlay);
+  const handType = selectedTiles.length > 0 ? classifyHand(selectedTiles, maxNumber) : null;
+  const isValidPlay = handType !== null && canPlay({ tiles: selectedTiles, handType }, lastPlay, maxNumber);
 
   const toggle = useCallback((id: string) => {
     setSelected(prev => {

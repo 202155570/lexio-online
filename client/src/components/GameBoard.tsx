@@ -21,6 +21,7 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
   const myIndex = gameState.players.findIndex(p => p.id === myId);
   const myPlayer = gameState.players[myIndex];
   const isMyTurn = gameState.currentTurn === myIndex;
+  const turnPlayer = gameState.players[gameState.currentTurn];
   const otherPlayers = gameState.players.filter(p => p.id !== myId);
 
   const lastPlayPlayer = gameState.lastPlayerId
@@ -35,7 +36,11 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
       <div style={styles.topBar}>
         <span style={styles.roundLabel}>라운드 {gameState.round}</span>
         <span style={styles.turnIndicator}>
-          {isMyTurn ? '내 차례!' : `${gameState.players[gameState.currentTurn]?.name} 차례`}
+          {isMyTurn
+            ? '내 차례!'
+            : turnPlayer && !turnPlayer.connected
+              ? `${turnPlayer.name} 재접속 대기 중`
+              : `${turnPlayer?.name} 차례`}
         </span>
         <button onClick={() => setShowHelp(true)} style={styles.helpBtn} title="족보 도움말">
           ? 족보
@@ -71,6 +76,7 @@ export default function GameBoard({ myId, myTiles, gameState, onPlay, onPass, er
           tiles={myTiles}
           isMyTurn={isMyTurn}
           lastPlay={gameState.lastPlay}
+          maxNumber={gameState.maxNumber}
           onPlay={onPlay}
           onPass={onPass}
           myName={myPlayer.name}

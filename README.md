@@ -1,8 +1,8 @@
 # 렉시오 온라인 (Lexio Online)
 
-포커 기반 클라이밍 보드게임 **렉시오**의 온라인 멀티플레이어 웹 게임. 2~6인 실시간 플레이.
+포커 기반 클라이밍 보드게임 **렉시오**의 온라인 멀티플레이어 웹 게임. 3~5인 실시간 플레이.
 
-![players](https://img.shields.io/badge/players-2~6-blue) ![stack](https://img.shields.io/badge/stack-React%20%2B%20Socket.io-green)
+![players](https://img.shields.io/badge/players-3~5-blue) ![stack](https://img.shields.io/badge/stack-React%20%2B%20Socket.io-green)
 
 ## 기능
 
@@ -11,7 +11,8 @@
 - 📜 전체 룰 구현: 싱글·페어·트리플·스트레이트·플러시·풀하우스·포카드+1·스티플
 - ☁️ 구름 3 보유자 선(先) 결정, 5장 족보 교차 대결
 - 🔀 손패 정렬: 자동(숫자순/문양순) ↔ 수동 드래그앤드롭 토글
-- 🪙 점수 칩 시각화 (1·5·10·50·100점), 2 타일 ×2 페널티
+- 🪙 점수 칩 시각화 (1·5·10·50·100점), 2 타일 한 장마다 ×2 중첩 페널티
+- 🔌 재접속: 새로고침·연결 끊김 후 60초 안에 돌아오면 같은 자리로 복귀
 
 ## 로컬 실행
 

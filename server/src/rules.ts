@@ -22,17 +22,36 @@ function highestTile(tiles: Tile[]): Tile {
   return tiles.reduce((a, b) => tileRank(a) > tileRank(b) ? a : b);
 }
 
-// Check if 5 tiles form a straight (consecutive numbers, any suits)
-function isStraight(tiles: Tile[]): boolean {
-  if (tiles.length !== 5) return false;
-  const ranks = tiles.map(t => NUMBER_RANK[t.number]).sort((a, b) => a - b);
-  // check consecutive
-  for (let i = 1; i < 5; i++) {
-    if (ranks[i] !== ranks[i - 1] + 1) return false;
+// 스트레이트 순서열: 1,2,3,…,max,1,2 — 1·2는 맨 앞(1-2-3-4-5)이나 맨 뒤(…-max-1-2)에만 붙는다.
+// 이 순서열의 연속 5칸이 유효 스트레이트이고, 시작 위치가 곧 서열이다(끝 숫자 기준, 클수록 강함).
+// 예) max=9: 1-2-3-4-5(0) … 6-7-8-9-1(5), 7-8-9-1-2(6) / 8-9-1-2-3 은 불가
+function straightSequence(maxNumber: number): number[] {
+  const seq: number[] = [];
+  for (let n = 1; n <= maxNumber; n++) seq.push(n);
+  seq.push(1, 2);
+  return seq;
+}
+
+// 스트레이트면 순서열 시작 위치(서열), 아니면 -1
+export function straightIndex(tiles: Tile[], maxNumber: number = 15): number {
+  if (tiles.length !== 5) return -1;
+  const nums = new Set<number>(tiles.map(t => t.number));
+  if (nums.size !== 5) return -1;
+  const seq = straightSequence(maxNumber);
+  for (let i = 0; i + 5 <= seq.length; i++) {
+    if (seq.slice(i, i + 5).every(n => nums.has(n))) return i;
   }
-  // all different numbers
-  const nums = new Set(tiles.map(t => t.number));
-  return nums.size === 5;
+  return -1;
+}
+
+// 스트레이트의 끝 숫자 타일 (동률 비교용)
+function straightEndTile(tiles: Tile[], maxNumber: number): Tile {
+  const end = straightSequence(maxNumber)[straightIndex(tiles, maxNumber) + 4];
+  return tiles.find(t => t.number === end)!;
+}
+
+function isStraight(tiles: Tile[], maxNumber: number): boolean {
+  return straightIndex(tiles, maxNumber) >= 0;
 }
 
 function isFlush(tiles: Tile[]): boolean {
@@ -41,7 +60,7 @@ function isFlush(tiles: Tile[]): boolean {
   return tiles.every(t => t.suit === suit);
 }
 
-export function classifyHand(tiles: Tile[]): HandType | null {
+export function classifyHand(tiles: Tile[], maxNumber: number = 15): HandType | null {
   const n = tiles.length;
   if (n === 1) return 'single';
 
@@ -56,7 +75,7 @@ export function classifyHand(tiles: Tile[]): HandType | null {
   }
 
   if (n === 5) {
-    const sf = isStraight(tiles) && isFlush(tiles);
+    const sf = isStraight(tiles, maxNumber) && isFlush(tiles);
     if (sf) return 'straightflush';
 
     const numGroups = groupByNumber(tiles);
@@ -65,7 +84,7 @@ export function classifyHand(tiles: Tile[]): HandType | null {
     if (sizes[0] === 4) return 'fourkind';
     if (sizes[0] === 3 && sizes[1] === 2) return 'fullhouse';
     if (isFlush(tiles)) return 'flush';
-    if (isStraight(tiles)) return 'straight';
+    if (isStraight(tiles, maxNumber)) return 'straight';
     return null;
   }
 
@@ -87,7 +106,7 @@ const HAND_RANK: Record<HandType, number> = {
 };
 
 // Compare two plays of the same type (returns positive if b beats a)
-export function comparePlays(a: Play, b: Play): number {
+export function comparePlays(a: Play, b: Play, maxNumber: number = 15): number {
   const rankA = HAND_RANK[a.handType];
   const rankB = HAND_RANK[b.handType];
 
@@ -95,7 +114,7 @@ export function comparePlays(a: Play, b: Play): number {
   if (rankA >= 3 && rankB >= 3) {
     if (rankB !== rankA) return rankB - rankA;
     // same 5-card type
-    return compare5CardSameType(a, b);
+    return compare5CardSameType(a, b, maxNumber);
   }
 
   // 1-3 card must be same type
@@ -117,15 +136,16 @@ export function comparePlays(a: Play, b: Play): number {
   }
 }
 
-function compare5CardSameType(a: Play, b: Play): number {
+function compare5CardSameType(a: Play, b: Play, maxNumber: number): number {
   switch (a.handType) {
     case 'straight':
     case 'straightflush': {
-      const ha = highestTile(a.tiles);
-      const hb = highestTile(b.tiles);
-      const numDiff = NUMBER_RANK[hb.number] - NUMBER_RANK[ha.number];
-      if (numDiff !== 0) return numDiff;
-      return SUIT_RANK[hb.suit] - SUIT_RANK[ha.suit];
+      // 끝 숫자 기준 → 같으면 끝 타일의 문양
+      const idxDiff = straightIndex(b.tiles, maxNumber) - straightIndex(a.tiles, maxNumber);
+      if (idxDiff !== 0) return idxDiff;
+      const ea = straightEndTile(a.tiles, maxNumber);
+      const eb = straightEndTile(b.tiles, maxNumber);
+      return SUIT_RANK[eb.suit] - SUIT_RANK[ea.suit];
     }
     case 'flush': {
       const ha = highestTile(a.tiles);
@@ -164,7 +184,7 @@ function getFourNumber(tiles: Tile[]): TileNumber {
   return tiles[0].number;
 }
 
-export function canPlay(incoming: Play, table: Play | null): boolean {
+export function canPlay(incoming: Play, table: Play | null, maxNumber: number = 15): boolean {
   if (!table) return true;
 
   const handRank = HAND_RANK[incoming.handType];
@@ -173,13 +193,18 @@ export function canPlay(incoming: Play, table: Play | null): boolean {
   // 5-card plays can be challenged by any higher-ranked 5-card play
   if (tableRank >= 3) {
     if (handRank < 3) return false;
-    return comparePlays(table, incoming) > 0;
+    return comparePlays(table, incoming, maxNumber) > 0;
   }
 
   // 1-3 card plays must match count and type
   if (incoming.tiles.length !== table.tiles.length) return false;
   if (incoming.handType !== table.handType) return false;
-  return comparePlays(table, incoming) > 0;
+  return comparePlays(table, incoming, maxNumber) > 0;
+}
+
+// 2 타일 페널티: 보유한 2 한 장마다 남은 타일 수 ×2 (중첩: 1장 ×2, 2장 ×4, 3장 ×8 …)
+export function twoMultiplier(tiles: Tile[]): number {
+  return 2 ** tiles.filter(t => t.number === 2).length;
 }
 
 // 렉시오 공식 인원별 구성: 사용 숫자(1~maxNumber) × 4문양, 인당 perPlayer장

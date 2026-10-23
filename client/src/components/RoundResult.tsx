@@ -51,10 +51,10 @@ export default function RoundResultScreen({ results, round, myId, onContinue }: 
               <span style={{ flex: 1, minWidth: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {r.name}{r.playerId === myId && <span style={styles.meTag}>나</span>}
               </span>
-              {/* 남은 패 + ×2 배지 */}
+              {/* 남은 패 + 2 타일 배수(×2, ×4 …) 배지 */}
               <span style={{ width: colW + 12, textAlign: 'right', color: '#aaa', whiteSpace: 'nowrap' }}>
                 {r.tilesLeft}장
-                {r.doubled && <span style={styles.x2}>×2</span>}
+                {r.multiplier > 1 && <span style={styles.x2}>×{r.multiplier}</span>}
               </span>
               <span style={{
                 width: colW, textAlign: 'right',

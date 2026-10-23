@@ -58,6 +58,12 @@ export default function OtherPlayer({ player, isCurrentTurn, position }: Props) 
         {player.passed && (
           <div style={{ fontSize: 10, color: '#e74c3c', fontWeight: 600 }}>PASS</div>
         )}
+        {!player.connected && (
+          <div style={{
+            fontSize: 10, color: '#f39c12', fontWeight: 700,
+            animation: 'pulse 1s infinite',
+          }}>재접속 대기 중</div>
+        )}
         {player.finishOrder && (
           <div style={{
             fontSize: 10, fontWeight: 700,
