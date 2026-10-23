@@ -7,3 +7,6 @@ dist/
 
 # 안전장치: tsc가 실수로 src에 emit한 컴파일 산출물
 client/src/**/*.js
+
+# 작업 상태 파일
+.amber/
